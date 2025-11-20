@@ -2,8 +2,9 @@ import os
 import time
 from contextlib import asynccontextmanager
 from collections import defaultdict
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
@@ -24,9 +25,39 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="REDI API",
     description="Smart-caching diacritic restoration with rate limiting",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan
 )
+
+# Environment-based CORS
+ALLOWED_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "https://finisherka.ak-varazdin.hr,https://finisherka-dev.ak-varazdin.hr"
+).split(",")
+API_KEY = os.getenv("REDI_API_KEY", None)
+ENABLE_API_KEY = os.getenv("ENABLE_API_KEY", "false").lower() == "true"
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+# Optional API Key authentication
+async def verify_api_key(x_api_key: str = Header(None)):
+    """Verify API key if enabled"""
+    if not ENABLE_API_KEY:
+        return True  # Disabled, skip check
+    
+    if x_api_key != API_KEY:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid or missing API key"
+        )
+    
+    return True
 
 # Rate limiting storage
 rate_limit_storage = defaultdict(lambda: {"count": 0, "reset_time": time.time()})
@@ -70,7 +101,7 @@ class SuggestResponse(BaseModel):
 async def root():
     return {
         "service": "REDI API",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "features": ["smart-caching", "rate-limiting"],
         "available_languages": restorer.languages,
         "loaded_languages": restorer.loaded_languages
@@ -129,7 +160,7 @@ async def get_stats():
     return restorer.stats
 
 @app.post("/suggest", response_model=SuggestResponse)
-async def suggest_correction(request: Request, body: SuggestRequest):
+async def suggest_correction(request: Request, body: SuggestRequest, _: bool = Depends(verify_api_key)):
     """Suggest correction with rate limiting"""
     
     # Rate limiting
@@ -151,10 +182,3 @@ async def suggest_correction(request: Request, body: SuggestRequest):
         # Log error but don't expose details
         print(f"ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail="Processing error")
-
-@app.middleware("http")
-async def add_rate_limit_headers(request: Request, call_next):
-    """Add rate limit info to response headers"""
-    response = await call_next(request)
-    
-    return response

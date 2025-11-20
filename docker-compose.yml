@@ -21,6 +21,10 @@ services:
     # Environment varijable
     environment:
       - PYTHONUNBUFFERED=1
+
+    # Load from env file
+    env_file:
+      - .env
     
     # Volumes - dijeli fajlove između hosta i kontejnera, ali kopiramo sve u image. Ostavi za manji image eventualno.
     # volumes:

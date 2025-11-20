@@ -1,4 +1,4 @@
-# Base image - Python 3.13 slim (minimalan)
+# Base image - Python 3.14 slim (minimalan)
 FROM python:3.14-slim AS base
 
 # Metadata
