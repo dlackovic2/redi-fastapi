@@ -1,0 +1,14 @@
+# Ne kopiraj ove fajlove u Docker image
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.git/
+.gitignore
+venv/
+.venv/
+*.md
+.pytest_cache/
+.coverage
+htmlcov/

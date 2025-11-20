@@ -1,0 +1,66 @@
+# version: '3.8'
+
+services:
+  redi-api:
+    # Build image iz Dockerfile-a u trenutnom direktoriju
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    # Ime kontejnera
+    container_name: redi-api
+    
+    # Restart policy - automatski restart ako padne
+    restart: unless-stopped
+    
+    # Port mapping: host:container
+    # 127.0.0.1:8002 - samo localhost može pristupiti (sigurnost)
+    ports:
+      - "127.0.0.1:8002:8000"
+    
+    # Environment varijable
+    environment:
+      - PYTHONUNBUFFERED=1
+    
+    # Volumes - dijeli fajlove između hosta i kontejnera, ali kopiramo sve u image. Ostavi za manji image eventualno.
+    # volumes:
+    #   - ./models:/app/models:ro  # read-only mount
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  daily-restart:
+    image: alpine:latest
+    container_name: daily-redicheck
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      sh -c "
+      apk add --no-cache docker-cli &&
+      echo '0 1 * * * docker restart redi-api' | crontab - &&
+      crond -f
+      "
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 100M
