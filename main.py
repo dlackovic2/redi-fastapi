@@ -1,5 +1,6 @@
 import os
 import time
+import logging
 from contextlib import asynccontextmanager
 from collections import defaultdict
 from fastapi import Depends, FastAPI, HTTPException, Request, Header
@@ -9,6 +10,14 @@ from pydantic import BaseModel
 from typing import Optional
 
 from fast_redi import SmartCachingRestorer
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger("redi-api")
 
 # Initialize restorer
 MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
@@ -25,7 +34,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="REDI API",
     description="Smart-caching diacritic restoration with rate limiting",
-    version="1.0.2",
+    version="1.0.3",
     lifespan=lifespan
 )
 
@@ -74,6 +83,41 @@ def get_client_ip(request: Request) -> str:
     # 3. Fallback to direct connection
     return request.client.host
 
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next):
+    """Enhanced access logging with real client IP"""
+    start_time = time.time()
+    
+    # Get real client IP (from X-Real-IP header)
+    real_ip = get_client_ip(request)
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Calculate duration
+    duration_ms = round((time.time() - start_time) * 1000, 2)
+    
+    # Build log message
+    log_msg = (
+        f"{real_ip:15s} {request.method:6s} {request.url.path:30s} "
+        f"→ {response.status_code:3d} ({duration_ms:7.2f}ms)"
+    )
+    
+    # Log based on status
+    if response.status_code >= 500:
+        logger.error(log_msg)
+    elif response.status_code == 429:
+        logger.warning(f"{log_msg} [RATE LIMITED]")
+    elif response.status_code >= 400:
+        logger.warning(log_msg)
+    else:
+        logger.info(log_msg)
+    
+    # Add real IP to response header (for debugging)
+    response.headers["X-Client-IP"] = real_ip
+    
+    return response
+
 # Rate limiting storage
 rate_limit_storage = defaultdict(lambda: {"count": 0, "reset_time": time.time()})
 
@@ -116,7 +160,7 @@ class SuggestResponse(BaseModel):
 async def root():
     return {
         "service": "REDI API",
-        "version": "1.0.2",
+        "version": "1.0.3",
         "features": ["smart-caching", "rate-limiting"],
         "available_languages": restorer.languages,
         "loaded_languages": restorer.loaded_languages

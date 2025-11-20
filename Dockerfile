@@ -42,5 +42,5 @@ CMD ["uvicorn", "main:app", \
      "--host", "0.0.0.0", \
      "--port", "8000", \
      "--backlog", "100", \
-     "--limit-concurrency", "100" \
-     ]
+     "--limit-concurrency", "100", \
+     "--no-access-log"]
