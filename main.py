@@ -59,17 +59,32 @@ async def verify_api_key(x_api_key: str = Header(None)):
     
     return True
 
+def get_client_ip(request: Request) -> str:
+    """Extract real client IP from headers"""
+    # 1. Check X-Real-IP (Django sets this)
+    real_ip = request.headers.get('X-Real-IP')
+    if real_ip:
+        return real_ip
+    
+    # 2. Check X-Forwarded-For (standard)
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        return forwarded_for.split(',')[0].strip()
+    
+    # 3. Fallback to direct connection
+    return request.client.host
+
 # Rate limiting storage
 rate_limit_storage = defaultdict(lambda: {"count": 0, "reset_time": time.time()})
 
 # Rate limiting config
-RATE_LIMIT_REQUESTS = 10  # requests
+RATE_LIMIT_REQUESTS = 20  # requests
 RATE_LIMIT_WINDOW = 60    # per 60 seconds
-RATE_LIMIT_NON_HR = 5     # Stricter for non-Croatian
+RATE_LIMIT_NON_HR = 10     # Stricter for non-Croatian
 
 def check_rate_limit(request: Request, lang: str) -> bool:
     """Check rate limit for IP and language"""
-    client_ip = request.client.host
+    client_ip = get_client_ip(request)
     key = f"{client_ip}:{lang}"
     
     now = time.time()
