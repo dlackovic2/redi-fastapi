@@ -14,7 +14,7 @@ anyio==4.11.0
     #   watchfiles
 click==8.3.1
     # via uvicorn
-fastapi==0.121.3
+fastapi==0.123.0
     # via -r requirements.in
 h11==0.16.0
     # via uvicorn
@@ -42,11 +42,9 @@ starlette==0.50.0
     # via fastapi
 typing-extensions==4.15.0
     # via
-    #   anyio
     #   fastapi
     #   pydantic
     #   pydantic-core
-    #   starlette
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
