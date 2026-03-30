@@ -48,7 +48,7 @@ typing-extensions==4.15.0
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
-uvicorn==0.38.0
+uvicorn==0.42.0
     # via -r requirements.in
 uvloop==0.22.1
     # via uvicorn
