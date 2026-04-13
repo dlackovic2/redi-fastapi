@@ -24,11 +24,11 @@ idna==3.11
     # via anyio
 psutil==7.2.2
     # via -r requirements.in
-pydantic==2.12.5
+pydantic==2.13.0
     # via
     #   -r requirements.in
     #   fastapi
-pydantic-core==2.41.5
+pydantic-core==2.46.0
     # via pydantic
 python-dotenv==1.2.1
     # via uvicorn
