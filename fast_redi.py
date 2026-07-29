@@ -5,11 +5,11 @@
 Fast diacritic restoration with smart caching and rate limiting.
 """
 
-import os
 import pickle
 import threading
 import time
 import gc
+from pathlib import Path
 from typing import Dict, List, Optional
 from collections import defaultdict
 import reldi_tokeniser
@@ -23,7 +23,12 @@ class SmartCachingRestorer:
     
     TM_LAMBDA = 0.2
     LM_LAMBDA = 0.8
-    SUPPORTED_LANGS = ['hr', 'sl', 'sr']
+    MODEL_FILENAMES = {
+        'hr': 'wikitweetweb.hr.tm',
+        'sl': 'wikitweetweb.sl.tm',
+        'sr': 'wikitweetweb.sr.tm',
+    }
+    SUPPORTED_LANGS = list(MODEL_FILENAMES)
     
     # Caching parameters
     UNLOAD_TIMEOUT = 30  # Unload after 30 seconds of inactivity
@@ -37,7 +42,7 @@ class SmartCachingRestorer:
             model_dir: Directory containing model files
             preload_languages: Languages to keep permanently (default: ['hr'])
         """
-        self.model_dir = model_dir
+        self.model_dir = Path(model_dir).resolve()
         self.preload_languages = preload_languages or ['hr']
         
         # Thread-safe structures
@@ -106,27 +111,48 @@ class SmartCachingRestorer:
                     # Force garbage collection
                     gc.collect()
     
+    def _model_path(self, lang: str) -> Path:
+        """Return the confined model path for an allow-listed language."""
+        filename = self.MODEL_FILENAMES.get(lang)
+        if filename is None:
+            raise ValueError(f"Unsupported language: {lang}")
+
+        try:
+            model_path = (self.model_dir / filename).resolve(strict=True)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Model not found for language: {lang}") from None
+
+        try:
+            model_path.relative_to(self.model_dir)
+        except ValueError:
+            raise ValueError(f"Model path escapes model directory for language: {lang}") from None
+
+        if not model_path.is_file():
+            raise FileNotFoundError(f"Model not found for language: {lang}")
+
+        return model_path
+
     def _load_language(self, lang: str, persistent: bool = False):
         """Load language with concurrent load protection"""
+        if lang not in self.MODEL_FILENAMES:
+            raise ValueError(f"Unsupported language: {lang}")
+
         if lang in self.lexicons:
             return  # Already loaded
-        
+
+        lexicon_path = self._model_path(lang)
+
         # Check concurrent load limit
         with self._loading_lock:
             if len(self._loading_languages) >= self.MAX_CONCURRENT_LOADS:
                 raise Exception(f"Too many languages loading simultaneously (max {self.MAX_CONCURRENT_LOADS})")
             
             self._loading_languages.add(lang)
-        
+
         try:
-            lexicon_path = os.path.join(self.model_dir, f"wikitweetweb.{lang}.tm")
-            
-            if not os.path.exists(lexicon_path):
-                raise FileNotFoundError(f"Model not found: {lexicon_path}")
-            
             print(f"Loading {lang}..." + (" (persistent)" if persistent else " (cached)"))
-            
-            with open(lexicon_path, 'rb') as f:
+
+            with lexicon_path.open('rb') as f:
                 self.lexicons[lang] = pickle.load(f)
             
             # Update activity tracking
