@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="REDI API",
     description="Smart-caching diacritic restoration with rate limiting",
-    version="1.0.3",
+    version="1.0.4",
     lifespan=lifespan
 )
 
@@ -160,7 +160,7 @@ class SuggestResponse(BaseModel):
 async def root():
     return {
         "service": "REDI API",
-        "version": "1.0.3",
+        "version": "1.0.4",
         "features": ["smart-caching", "rate-limiting"],
         "available_languages": restorer.languages,
         "loaded_languages": restorer.loaded_languages
